@@ -71,30 +71,84 @@ public:
 
 
 };
-
-
-class Triangle {
+class Triangle: public Shape {
 public:
 	glm::vec3 a, b, c;
+	glm::vec3 intersection;
+	glm::vec3 base_color;
 
-	Triangle(glm::vec3 aa, glm::vec3 bb, glm::vec3 cc) {
+	glm::vec3 normal() {
+		glm::vec3 ab = b - a;
+		glm::vec3 ac = c - a;
+		return glm::normalize(glm::cross(ab, ac));
+	}
+
+	Triangle(glm::vec3 aa, glm::vec3 bb, glm::vec3 cc, glm::vec3 color) {
 		a = aa;
 		b = bb;
 		c = cc;
+		base_color = color;
 	}
 
-	float area() {
-		glm::vec3 ab = b - a;
-		glm::vec3 ac = c - a;
-		return 0.5f * glm::length(ab) * glm::length(ac) * sin(glm::angle(ab, ac));
+
+	bool contact(Ray &ray)
+	{
+		ray.d = glm::normalize(ray.d);
+
+		const float EPSILON = 0.0000001;
+		glm::vec3 vertex0 = a;
+		glm::vec3 vertex1 = b;
+		glm::vec3 vertex2 = c;
+
+		glm::vec3 edge1, edge2, h, s, q;
+		float a, f, u, v;
+		edge1 = vertex1 - vertex0;
+		edge2 = vertex2 - vertex0;
+		h = glm::cross(ray.d, edge2);
+		a = glm::dot(edge1, h);
+		if (a > -EPSILON && a < EPSILON)
+			return false;    // This ray is parallel to this triangle.
+		f = 1.0 / a;
+		s = ray.o - vertex0;
+		u = f * glm::dot(s, h);
+		if (u < 0.0 || u > 1.0)
+			return false;
+		q = glm::cross(s, edge1);
+		v = f * glm::dot(ray.d, q);
+
+		if (v < 0.0 || u + v > 1.0)
+			return false;
+		// At this stage we can compute t to find out where the intersection point is on the line.
+
+		float t = f * glm::dot(edge2, q);
+		if (t > EPSILON && t < 1 / EPSILON) // ray intersection
+		{
+			intersection = ray.o + ray.d * t;
+			return true;
+		}
+		else // This means that there is a line intersection but not a ray intersection.
+			return false;
 	}
 
-	
+
+	glm::vec3 contactPoint(Ray &ray) { return intersection; }
+
+	glm::vec3 getColor(Ray &ray) {
+		float factor = cos(glm::angle(normal(), glm::normalize(ray.d)));
+		if (factor > 1)
+			std::cout << factor << std::endl;
+		return abs(factor) * base_color;
+		return base_color;
+	}
+
 };
+
 
 Sphere red_s(glm::vec3(0.0, 0.0, -3.0), 1.5, glm::vec3(80, 70, 88)); // black
 Sphere blue_s(glm::vec3(0.0, 0.5, -1.0), 0.5, glm::vec3(240, 222, 203)); // light
 Sphere green_s(glm::vec3(0.8, -0.0, -1.5), 0.5, glm::vec3(206, 46, 108)); // red
+Triangle t(glm::vec3(-1.5, -0.8, -1), glm::vec3(0.5, -0.8, -1), glm::vec3(-0.5, 0.5, -1), glm::vec3(255, 0, 0));
+
 
 std::vector<Shape*> shapes;
 
@@ -146,11 +200,12 @@ glm::vec3 getColor(glm::vec3 &point, glm::vec3 &ll, glm::vec3 &h, glm::vec3 &v, 
 
 int main(void) {
 
-	int w = 600;
-	int y = 300;
+	int w = 1000;
+	int y = 500;
 	shapes.push_back(&red_s);
 	shapes.push_back(&blue_s);
 	shapes.push_back(&green_s);
+	shapes.push_back(&t);
 
 	glm::vec3 ll(-2, -1, -1);
 	glm::vec3 width(4, 0, 0);
